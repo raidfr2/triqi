@@ -11,8 +11,12 @@ import {
   Loader2,
   Plus,
   Edit,
-  Trash2
+  Trash2,
+  Navigation,
+  Route,
+  MapPin as MapPinIcon
 } from "lucide-react";
+import { Input } from "@/components/ui/input";
 
 declare global {
   interface Window {
@@ -46,6 +50,11 @@ export default function MapContainer() {
   const [selectedMarker, setSelectedMarker] = useState<Marker | null>(null);
   const [markersLoaded, setMarkersLoaded] = useState(false);
   const [showInfoPanel, setShowInfoPanel] = useState(false);
+  const [showRoutePanel, setShowRoutePanel] = useState(false);
+  const [startLocation, setStartLocation] = useState('');
+  const [endLocation, setEndLocation] = useState('');
+  const [routeResults, setRouteResults] = useState<any[]>([]);
+  const [isLoadingRoute, setIsLoadingRoute] = useState(false);
   const [mapInfo, setMapInfo] = useState<MapInfo>({
     zoom: 12,
     center: { lat: 35.6976, lng: -0.6337 }
@@ -296,14 +305,65 @@ export default function MapContainer() {
     console.log('Style toggle clicked - implement style switching');
   };
 
+  const searchBusRoutes = async () => {
+    if (!startLocation.trim() || !endLocation.trim()) {
+      console.warn('Please enter both start and end locations');
+      return;
+    }
+
+    setIsLoadingRoute(true);
+    setRouteResults([]);
+
+    try {
+      // Call backend API for bus route search
+      const response = await fetch('/api/routes/search', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          start: startLocation,
+          end: endLocation,
+          mode: 'transit'
+        })
+      });
+
+      if (response.ok) {
+        const routes = await response.json();
+        setRouteResults(routes);
+        
+        // Center map to show the route area
+        if (routes.length > 0 && routes[0].bounds) {
+          const bounds = routes[0].bounds;
+          if (map.current) {
+            map.current.fitBounds([
+              [bounds.southwest.lng, bounds.southwest.lat],
+              [bounds.northeast.lng, bounds.northeast.lat]
+            ], { padding: 50 });
+          }
+        }
+      } else {
+        console.error('Failed to search routes');
+      }
+    } catch (error) {
+      console.error('Route search error:', error);
+    } finally {
+      setIsLoadingRoute(false);
+    }
+  };
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setShowInfoPanel(false);
+        setShowRoutePanel(false);
       }
       if (e.key === 'i' || e.key === 'I') {
         setShowInfoPanel(prev => !prev);
+      }
+      if (e.key === 'b' || e.key === 'B') {
+        setShowRoutePanel(prev => !prev);
       }
       if (e.key === 'r' || e.key === 'R') {
         resetView();
@@ -343,6 +403,18 @@ export default function MapContainer() {
                 >
                   <Heart className="w-4 h-4" />
                   <span>Style</span>
+                </Button>
+                
+                {/* Bus Routes Toggle */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowRoutePanel(prev => !prev)}
+                  className={`flex items-center space-x-2 ${showRoutePanel ? 'bg-primary text-primary-foreground' : ''}`}
+                  data-testid="button-route-toggle"
+                >
+                  <Route className="w-4 h-4" />
+                  <span>Bus Routes</span>
                 </Button>
                 
                 {/* Fullscreen Toggle */}
@@ -396,6 +468,123 @@ export default function MapContainer() {
                   <span className="text-muted-foreground">Style:</span>
                   <span className="text-primary font-medium">Custom</span>
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+      
+      {/* Bus Route Planning Panel */}
+      {showRoutePanel && (
+        <div className="absolute top-20 left-4 z-10 w-80">
+          <Card className="bg-card/95 backdrop-blur-sm border border-border shadow-lg fade-in">
+            <CardContent className="p-4">
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center space-x-2">
+                  <Route className="w-5 h-5 text-primary" />
+                  <h3 className="text-lg font-semibold text-card-foreground">Bus Routes</h3>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowRoutePanel(false)}
+                  className="p-0 h-auto text-muted-foreground hover:text-foreground"
+                  data-testid="button-close-route-panel"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+              
+              <div className="space-y-4">
+                {/* Start Location */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-card-foreground flex items-center space-x-1">
+                    <MapPinIcon className="w-4 h-4 text-green-600" />
+                    <span>From</span>
+                  </label>
+                  <Input
+                    placeholder="Enter start location (e.g., Place du 1er Mai, Oran)"
+                    value={startLocation}
+                    onChange={(e) => setStartLocation(e.target.value)}
+                    className="w-full"
+                    data-testid="input-start-location"
+                  />
+                </div>
+                
+                {/* End Location */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-card-foreground flex items-center space-x-1">
+                    <MapPinIcon className="w-4 h-4 text-red-600" />
+                    <span>To</span>
+                  </label>
+                  <Input
+                    placeholder="Enter destination (e.g., Université d'Oran, Oran)"
+                    value={endLocation}
+                    onChange={(e) => setEndLocation(e.target.value)}
+                    className="w-full"
+                    data-testid="input-end-location"
+                  />
+                </div>
+                
+                {/* Search Button */}
+                <Button
+                  onClick={searchBusRoutes}
+                  disabled={isLoadingRoute || !startLocation.trim() || !endLocation.trim()}
+                  className="w-full"
+                  data-testid="button-search-routes"
+                >
+                  {isLoadingRoute ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Searching Routes...
+                    </>
+                  ) : (
+                    <>
+                      <Navigation className="w-4 h-4 mr-2" />
+                      Find Bus Routes
+                    </>
+                  )}
+                </Button>
+                
+                {/* Route Results */}
+                {routeResults.length > 0 && (
+                  <div className="space-y-3 mt-4">
+                    <h4 className="text-sm font-semibold text-card-foreground">Route Options:</h4>
+                    {routeResults.map((route, index) => (
+                      <div
+                        key={index}
+                        className="p-3 bg-accent/20 rounded-lg border border-accent/30"
+                      >
+                        <div className="flex items-start justify-between mb-2">
+                          <span className="text-sm font-medium text-primary">Route {index + 1}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {route.duration || 'Est. 45 min'}
+                          </span>
+                        </div>
+                        <div className="space-y-1 text-xs text-muted-foreground">
+                          {route.steps?.map((step: any, stepIndex: number) => (
+                            <div key={stepIndex} className="flex items-center space-x-2">
+                              <div className="w-2 h-2 rounded-full bg-primary/60"></div>
+                              <span>{step.instruction || `Step ${stepIndex + 1}`}</span>
+                            </div>
+                          )) || (
+                            <div className="text-center py-2">
+                              <span>Route details will appear here</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                {/* Empty State */}
+                {!isLoadingRoute && routeResults.length === 0 && (startLocation.trim() || endLocation.trim()) && (
+                  <div className="text-center py-4 text-muted-foreground">
+                    <Route className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">Enter both locations and click "Find Bus Routes" to search</p>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
