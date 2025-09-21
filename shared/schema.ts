@@ -33,3 +33,41 @@ export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type InsertMarker = z.infer<typeof insertMarkerSchema>;
 export type Marker = typeof markers.$inferSelect;
+
+// Route search schemas
+export const routeSearchSchema = z.object({
+  start: z.string().min(1, "Start location is required"),
+  end: z.string().min(1, "End location is required"),
+  mode: z.enum(['driving', 'walking', 'transit', 'bicycling']).default('transit')
+});
+
+export const routeStepSchema = z.object({
+  instruction: z.string(),
+  distance: z.string().optional(),
+  duration: z.string().optional(),
+  transitDetails: z.object({
+    line: z.string(),
+    vehicle: z.string(),
+    stop: z.string()
+  }).optional()
+});
+
+export const routeSchema = z.object({
+  duration: z.string(),
+  distance: z.string(),
+  steps: z.array(routeStepSchema),
+  bounds: z.object({
+    southwest: z.object({
+      lat: z.number(),
+      lng: z.number()
+    }),
+    northeast: z.object({
+      lat: z.number(),
+      lng: z.number()
+    })
+  }).optional()
+});
+
+export type RouteSearchRequest = z.infer<typeof routeSearchSchema>;
+export type RouteResult = z.infer<typeof routeSchema>;
+export type RouteStep = z.infer<typeof routeStepSchema>;
