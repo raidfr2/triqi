@@ -48,7 +48,7 @@ export default function MapContainer() {
   const [showInfoPanel, setShowInfoPanel] = useState(false);
   const [mapInfo, setMapInfo] = useState<MapInfo>({
     zoom: 12,
-    center: { lat: 40.7128, lng: -74.006 }
+    center: { lat: 35.6976, lng: -0.6337 }
   });
 
   useEffect(() => {
@@ -82,7 +82,7 @@ export default function MapContainer() {
       map.current = new window.mapboxgl.Map({
         container: mapContainer.current,
         style: 'mapbox://styles/raidfr2/cmfdzy5bs009n01sjhh8ddvo6',
-        center: [-74.006, 40.7128], // NYC
+        center: [-0.6337, 35.6976], // Oran, Algeria
         zoom: 12,
         pitch: 0,
         bearing: 0,
@@ -193,7 +193,7 @@ export default function MapContainer() {
       // Update map info to show fallback state
       setMapInfo({
         zoom: 12,
-        center: { lat: 40.7128, lng: -74.006 }
+        center: { lat: 35.6976, lng: -0.6337 }
       });
       setMarkersLoaded(true);
     }
@@ -228,7 +228,7 @@ export default function MapContainer() {
   const resetView = () => {
     if (map.current) {
       map.current.flyTo({
-        center: [-74.006, 40.7128],
+        center: [-0.6337, 35.6976],
         zoom: 12,
         pitch: 0,
         bearing: 0,
