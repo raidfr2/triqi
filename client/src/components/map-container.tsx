@@ -55,6 +55,7 @@ export default function MapContainer() {
   const [endLocation, setEndLocation] = useState('');
   const [routeResults, setRouteResults] = useState<any[]>([]);
   const [isLoadingRoute, setIsLoadingRoute] = useState(false);
+  const [activeRouteHandlers, setActiveRouteHandlers] = useState<string[]>([]);
   const [mapInfo, setMapInfo] = useState<MapInfo>({
     zoom: 12,
     center: { lat: 35.6976, lng: -0.6337 }
@@ -305,6 +306,129 @@ export default function MapContainer() {
     console.log('Style toggle clicked - implement style switching');
   };
 
+  const displayRoutesOnMap = (routes: any[]) => {
+    if (!map.current) return;
+
+    // Clear existing route layers
+    clearRouteLayersFromMap();
+
+    routes.forEach((route, routeIndex) => {
+      if (route.geometry && route.geometry.coordinates) {
+        const sourceId = `route-${routeIndex}`;
+        const layerId = `route-layer-${routeIndex}`;
+
+        // Add source for the route
+        if (!map.current.getSource(sourceId)) {
+          map.current.addSource(sourceId, {
+            type: 'geojson',
+            data: {
+              type: 'Feature',
+              properties: {
+                routeIndex,
+                duration: route.duration,
+                distance: route.distance
+              },
+              geometry: route.geometry
+            }
+          });
+        }
+
+        // Add layer to display the route
+        if (!map.current.getLayer(layerId)) {
+          map.current.addLayer({
+            id: layerId,
+            type: 'line',
+            source: sourceId,
+            layout: {
+              'line-join': 'round',
+              'line-cap': 'round'
+            },
+            paint: {
+              'line-color': routeIndex === 0 ? '#2563eb' : '#7c3aed', // Blue for first route, purple for alternatives
+              'line-width': [
+                'interpolate',
+                ['linear'],
+                ['zoom'],
+                12, 4,
+                16, 8
+              ],
+              'line-opacity': 0.8
+            }
+          });
+
+          // Add click event to route layer
+          map.current.on('click', layerId, (e: any) => {
+            if (e.features && e.features[0]) {
+              const properties = e.features[0].properties;
+              const popup = new window.mapboxgl.Popup()
+                .setLngLat(e.lngLat)
+                .setHTML(`
+                  <div class="p-2">
+                    <h4 class="font-semibold text-sm">Route ${properties.routeIndex + 1}</h4>
+                    <p class="text-xs text-gray-600">Duration: ${properties.duration}</p>
+                    <p class="text-xs text-gray-600">Distance: ${properties.distance}</p>
+                  </div>
+                `)
+                .addTo(map.current);
+            }
+          });
+
+          // Change cursor on hover
+          map.current.on('mouseenter', layerId, () => {
+            if (map.current) {
+              map.current.getCanvas().style.cursor = 'pointer';
+            }
+          });
+
+          map.current.on('mouseleave', layerId, () => {
+            if (map.current) {
+              map.current.getCanvas().style.cursor = '';
+            }
+          });
+
+          // Track this layer for cleanup
+          setActiveRouteHandlers(prev => [...prev, layerId]);
+        }
+      }
+    });
+  };
+
+  const clearRouteLayersFromMap = () => {
+    if (!map.current) return;
+
+    // Remove event handlers for existing route layers
+    activeRouteHandlers.forEach(layerId => {
+      if (map.current.getLayer(layerId)) {
+        map.current.off('click', layerId);
+        map.current.off('mouseenter', layerId);
+        map.current.off('mouseleave', layerId);
+      }
+    });
+    setActiveRouteHandlers([]);
+
+    // Remove existing route layers and sources
+    const style = map.current.getStyle();
+    if (style.layers) {
+      style.layers.forEach((layer: any) => {
+        if (layer.id && layer.id.startsWith('route-layer-')) {
+          if (map.current.getLayer(layer.id)) {
+            map.current.removeLayer(layer.id);
+          }
+        }
+      });
+    }
+
+    if (style.sources) {
+      Object.keys(style.sources).forEach(sourceId => {
+        if (sourceId.startsWith('route-')) {
+          if (map.current.getSource(sourceId)) {
+            map.current.removeSource(sourceId);
+          }
+        }
+      });
+    }
+  };
+
   const searchBusRoutes = async () => {
     if (!startLocation.trim() || !endLocation.trim()) {
       console.warn('Please enter both start and end locations');
@@ -332,14 +456,18 @@ export default function MapContainer() {
         const routes = await response.json();
         setRouteResults(routes);
         
-        // Center map to show the route area
-        if (routes.length > 0 && routes[0].bounds) {
-          const bounds = routes[0].bounds;
-          if (map.current) {
-            map.current.fitBounds([
-              [bounds.southwest.lng, bounds.southwest.lat],
-              [bounds.northeast.lng, bounds.northeast.lat]
-            ], { padding: 50 });
+        // Display routes on the map and fit bounds
+        if (routes.length > 0) {
+          displayRoutesOnMap(routes);
+          
+          if (routes[0].bounds) {
+            const bounds = routes[0].bounds;
+            if (map.current) {
+              map.current.fitBounds([
+                [bounds.southwest.lng, bounds.southwest.lat],
+                [bounds.northeast.lng, bounds.northeast.lat]
+              ], { padding: 50 });
+            }
           }
         }
       } else {
@@ -358,6 +486,8 @@ export default function MapContainer() {
       if (e.key === 'Escape') {
         setShowInfoPanel(false);
         setShowRoutePanel(false);
+        clearRouteLayersFromMap();
+        setRouteResults([]);
       }
       if (e.key === 'i' || e.key === 'I') {
         setShowInfoPanel(prev => !prev);
@@ -487,7 +617,11 @@ export default function MapContainer() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setShowRoutePanel(false)}
+                  onClick={() => {
+                    setShowRoutePanel(false);
+                    clearRouteLayersFromMap();
+                    setRouteResults([]);
+                  }}
                   className="p-0 h-auto text-muted-foreground hover:text-foreground"
                   data-testid="button-close-route-panel"
                 >

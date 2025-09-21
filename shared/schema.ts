@@ -56,6 +56,10 @@ export const routeSchema = z.object({
   duration: z.string(),
   distance: z.string(),
   steps: z.array(routeStepSchema),
+  geometry: z.object({
+    coordinates: z.array(z.array(z.number())), // Array of [lng, lat] coordinates
+    type: z.literal("LineString")
+  }),
   bounds: z.object({
     southwest: z.object({
       lat: z.number(),

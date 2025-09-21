@@ -91,6 +91,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         {
           duration: "45 min",
           distance: "12.5 km",
+          geometry: {
+            type: "LineString",
+            coordinates: [
+              [-0.6337, 35.6976], // Start: Université
+              [-0.6310, 35.6990], // Walk to bus stop
+              [-0.6280, 35.7010], // Bus route
+              [-0.6250, 35.7020],
+              [-0.6220, 35.7030], // Place d'Armes
+              [-0.6200, 35.7025], // Transfer
+              [-0.6180, 35.7015], // Bus Line 6
+              [-0.6160, 35.7000],
+              [-0.6140, 35.6985], // End destination
+            ]
+          },
           steps: [
             {
               instruction: "Walk to Arrêt Université",
@@ -136,6 +150,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         {
           duration: "52 min",
           distance: "14.2 km",
+          geometry: {
+            type: "LineString",
+            coordinates: [
+              [-0.6337, 35.6976], // Start: Université
+              [-0.6350, 35.6985], // Walk to faculté tram stop
+              [-0.6370, 35.6995], // Tram Line 1
+              [-0.6400, 35.7005],
+              [-0.6420, 35.7015], // République
+              [-0.6440, 35.7010], // Transfer to Bus Line 8
+              [-0.6460, 35.7000],
+              [-0.6480, 35.6990],
+              [-0.6500, 35.6980], // End destination
+            ]
+          },
           steps: [
             {
               instruction: "Walk to Arrêt Faculté",
