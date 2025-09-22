@@ -56,6 +56,11 @@ export default function MapContainer() {
   const [routeResults, setRouteResults] = useState<any[]>([]);
   const [isLoadingRoute, setIsLoadingRoute] = useState(false);
   const [activeRouteHandlers, setActiveRouteHandlers] = useState<string[]>([]);
+  const [clickMode, setClickMode] = useState<'none' | 'start' | 'end'>('none');
+  const [startCoords, setStartCoords] = useState<{lng: number, lat: number} | null>(null);
+  const [endCoords, setEndCoords] = useState<{lng: number, lat: number} | null>(null);
+  const [startMarker, setStartMarker] = useState<any>(null);
+  const [endMarker, setEndMarker] = useState<any>(null);
   const [mapInfo, setMapInfo] = useState<MapInfo>({
     zoom: 12,
     center: { lat: 35.6976, lng: -0.6337 }
@@ -143,9 +148,37 @@ export default function MapContainer() {
     map.current.on('moveend', updateMapInfo);
     map.current.on('zoomend', updateMapInfo);
 
+    // Update cursor style based on click mode
+    const updateCursor = () => {
+      if (map.current) {
+        const canvas = map.current.getCanvas();
+        if (clickMode === 'start' || clickMode === 'end') {
+          canvas.style.cursor = 'crosshair';
+        } else {
+          canvas.style.cursor = '';
+        }
+      }
+    };
+    
+    // Apply cursor style immediately
+    updateCursor();
+
     map.current.on('click', (e: any) => {
       const coordinates = e.lngLat;
       console.log(`Clicked at: ${coordinates.lng}, ${coordinates.lat}`);
+      
+      // Handle setting start/end locations
+      if (clickMode === 'start') {
+        setStartCoords({ lng: coordinates.lng, lat: coordinates.lat });
+        setStartLocation(`${coordinates.lat.toFixed(4)}, ${coordinates.lng.toFixed(4)}`);
+        addStartMarker(coordinates);
+        setClickMode('none');
+      } else if (clickMode === 'end') {
+        setEndCoords({ lng: coordinates.lng, lat: coordinates.lat });
+        setEndLocation(`${coordinates.lat.toFixed(4)}, ${coordinates.lng.toFixed(4)}`);
+        addEndMarker(coordinates);
+        setClickMode('none');
+      }
     });
 
     map.current.on('error', (e: any) => {
@@ -304,6 +337,57 @@ export default function MapContainer() {
   const handleStyleToggle = () => {
     // Placeholder for future style switching functionality
     console.log('Style toggle clicked - implement style switching');
+  };
+
+  const addStartMarker = (coordinates: any) => {
+    if (!map.current) return;
+    
+    // Remove existing start marker
+    if (startMarker) {
+      startMarker.remove();
+    }
+    
+    // Create new start marker (green)
+    const marker = new window.mapboxgl.Marker({ color: '#10b981' })
+      .setLngLat([coordinates.lng, coordinates.lat])
+      .setPopup(new window.mapboxgl.Popup({ offset: 25 })
+        .setHTML(`<div class="p-2"><h4 class="font-semibold text-sm text-green-600">Start Location</h4><p class="text-xs text-gray-600">${coordinates.lat.toFixed(4)}, ${coordinates.lng.toFixed(4)}</p></div>`))
+      .addTo(map.current);
+    
+    setStartMarker(marker);
+  };
+
+  const addEndMarker = (coordinates: any) => {
+    if (!map.current) return;
+    
+    // Remove existing end marker
+    if (endMarker) {
+      endMarker.remove();
+    }
+    
+    // Create new end marker (red)
+    const marker = new window.mapboxgl.Marker({ color: '#ef4444' })
+      .setLngLat([coordinates.lng, coordinates.lat])
+      .setPopup(new window.mapboxgl.Popup({ offset: 25 })
+        .setHTML(`<div class="p-2"><h4 class="font-semibold text-sm text-red-600">End Location</h4><p class="text-xs text-gray-600">${coordinates.lat.toFixed(4)}, ${coordinates.lng.toFixed(4)}</p></div>`))
+      .addTo(map.current);
+    
+    setEndMarker(marker);
+  };
+
+  const clearLocationMarkers = () => {
+    if (startMarker) {
+      startMarker.remove();
+      setStartMarker(null);
+    }
+    if (endMarker) {
+      endMarker.remove();
+      setEndMarker(null);
+    }
+    setStartCoords(null);
+    setEndCoords(null);
+    setStartLocation('');
+    setEndLocation('');
   };
 
   const displayRoutesOnMap = (routes: any[]) => {
@@ -480,6 +564,18 @@ export default function MapContainer() {
     }
   };
 
+  // Update cursor style when click mode changes
+  useEffect(() => {
+    if (map.current) {
+      const canvas = map.current.getCanvas();
+      if (clickMode === 'start' || clickMode === 'end') {
+        canvas.style.cursor = 'crosshair';
+      } else {
+        canvas.style.cursor = '';
+      }
+    }
+  }, [clickMode]);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -488,6 +584,7 @@ export default function MapContainer() {
         setShowRoutePanel(false);
         clearRouteLayersFromMap();
         setRouteResults([]);
+        setClickMode('none');
       }
       if (e.key === 'i' || e.key === 'I') {
         setShowInfoPanel(prev => !prev);
@@ -632,12 +729,22 @@ export default function MapContainer() {
               <div className="space-y-4">
                 {/* Start Location */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-card-foreground flex items-center space-x-1">
-                    <MapPinIcon className="w-4 h-4 text-green-600" />
-                    <span>From</span>
+                  <label className="text-sm font-medium text-card-foreground flex items-center justify-between">
+                    <div className="flex items-center space-x-1">
+                      <MapPinIcon className="w-4 h-4 text-green-600" />
+                      <span>From</span>
+                    </div>
+                    <Button
+                      variant={clickMode === 'start' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setClickMode(clickMode === 'start' ? 'none' : 'start')}
+                      className="h-6 px-2 text-xs"
+                    >
+                      {clickMode === 'start' ? 'Click map' : 'Set on map'}
+                    </Button>
                   </label>
                   <Input
-                    placeholder="Enter start location (e.g., Place du 1er Mai, Oran)"
+                    placeholder="Enter start location or click 'Set on map'"
                     value={startLocation}
                     onChange={(e) => setStartLocation(e.target.value)}
                     className="w-full"
@@ -647,12 +754,22 @@ export default function MapContainer() {
                 
                 {/* End Location */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-card-foreground flex items-center space-x-1">
-                    <MapPinIcon className="w-4 h-4 text-red-600" />
-                    <span>To</span>
+                  <label className="text-sm font-medium text-card-foreground flex items-center justify-between">
+                    <div className="flex items-center space-x-1">
+                      <MapPinIcon className="w-4 h-4 text-red-600" />
+                      <span>To</span>
+                    </div>
+                    <Button
+                      variant={clickMode === 'end' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setClickMode(clickMode === 'end' ? 'none' : 'end')}
+                      className="h-6 px-2 text-xs"
+                    >
+                      {clickMode === 'end' ? 'Click map' : 'Set on map'}
+                    </Button>
                   </label>
                   <Input
-                    placeholder="Enter destination (e.g., Université d'Oran, Oran)"
+                    placeholder="Enter destination or click 'Set on map'"
                     value={endLocation}
                     onChange={(e) => setEndLocation(e.target.value)}
                     className="w-full"
@@ -660,25 +777,46 @@ export default function MapContainer() {
                   />
                 </div>
                 
-                {/* Search Button */}
-                <Button
-                  onClick={searchBusRoutes}
-                  disabled={isLoadingRoute || !startLocation.trim() || !endLocation.trim()}
-                  className="w-full"
-                  data-testid="button-search-routes"
-                >
-                  {isLoadingRoute ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Searching Routes...
-                    </>
-                  ) : (
-                    <>
-                      <Navigation className="w-4 h-4 mr-2" />
-                      Find Bus Routes
-                    </>
+                {/* Action Buttons */}
+                <div className="space-y-2">
+                  <div className="flex space-x-2">
+                    <Button
+                      onClick={searchBusRoutes}
+                      disabled={isLoadingRoute || !startLocation.trim() || !endLocation.trim()}
+                      className="flex-1"
+                      data-testid="button-search-routes"
+                    >
+                      {isLoadingRoute ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Searching...
+                        </>
+                      ) : (
+                        <>
+                          <Navigation className="w-4 h-4 mr-2" />
+                          Find Routes
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        clearLocationMarkers();
+                        clearRouteLayersFromMap();
+                        setRouteResults([]);
+                        setClickMode('none');
+                      }}
+                      className="px-3"
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  {clickMode !== 'none' && (
+                    <p className="text-xs text-muted-foreground text-center">
+                      Click on the map to set {clickMode === 'start' ? 'start' : 'end'} location
+                    </p>
                   )}
-                </Button>
+                </div>
                 
                 {/* Route Results */}
                 {routeResults.length > 0 && (
