@@ -93,10 +93,10 @@ export default function MapContainer() {
       
       window.mapboxgl.accessToken = accessToken;
 
-      // Initialize map with custom style
+      // Initialize map with reliable Mapbox style
       map.current = new window.mapboxgl.Map({
         container: mapContainer.current,
-        style: 'mapbox://styles/raidfr2/cmfdzy5bs009n01sjhh8ddvo6',
+        style: 'mapbox://styles/mapbox/streets-v12', // Using standard Mapbox style
         center: [-0.6337, 35.6976], // Oran, Algeria
         zoom: 12,
         pitch: 0,
