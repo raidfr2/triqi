@@ -163,22 +163,10 @@ export default function MapContainer() {
     // Apply cursor style immediately
     updateCursor();
 
+    // Basic click handler for debugging
     map.current.on('click', (e: any) => {
       const coordinates = e.lngLat;
-      console.log(`Clicked at: ${coordinates.lng}, ${coordinates.lat}`);
-      
-      // Handle setting start/end locations
-      if (clickMode === 'start') {
-        setStartCoords({ lng: coordinates.lng, lat: coordinates.lat });
-        setStartLocation(`${coordinates.lat.toFixed(4)}, ${coordinates.lng.toFixed(4)}`);
-        addStartMarker(coordinates);
-        setClickMode('none');
-      } else if (clickMode === 'end') {
-        setEndCoords({ lng: coordinates.lng, lat: coordinates.lat });
-        setEndLocation(`${coordinates.lat.toFixed(4)}, ${coordinates.lng.toFixed(4)}`);
-        addEndMarker(coordinates);
-        setClickMode('none');
-      }
+      console.log(`Map clicked at: ${coordinates.lng}, ${coordinates.lat}`);
     });
 
     map.current.on('error', (e: any) => {
@@ -564,7 +552,32 @@ export default function MapContainer() {
     }
   };
 
-  // Update cursor style when click mode changes
+  // Location click handler function
+  const handleLocationClick = (e: any) => {
+    try {
+      console.log('handleLocationClick called, clickMode:', clickMode);
+      const coordinates = e.lngLat;
+      console.log(`Location click at: ${coordinates.lng}, ${coordinates.lat}, mode: ${clickMode}`);
+      
+      if (clickMode === 'start') {
+        console.log('Setting start location');
+        setStartCoords({ lng: coordinates.lng, lat: coordinates.lat });
+        setStartLocation(`${coordinates.lat.toFixed(4)}, ${coordinates.lng.toFixed(4)}`);
+        addStartMarker(coordinates);
+        setClickMode('none');
+      } else if (clickMode === 'end') {
+        console.log('Setting end location');
+        setEndCoords({ lng: coordinates.lng, lat: coordinates.lat });
+        setEndLocation(`${coordinates.lat.toFixed(4)}, ${coordinates.lng.toFixed(4)}`);
+        addEndMarker(coordinates);
+        setClickMode('none');
+      }
+    } catch (error) {
+      console.error('Error in handleLocationClick:', error);
+    }
+  };
+
+  // Update cursor style and click handler when click mode changes
   useEffect(() => {
     if (map.current) {
       const canvas = map.current.getCanvas();
@@ -573,7 +586,22 @@ export default function MapContainer() {
       } else {
         canvas.style.cursor = '';
       }
+      
+      // Remove existing location click handler
+      map.current.off('click', handleLocationClick);
+      
+      // Add new location click handler if in location setting mode
+      if (clickMode === 'start' || clickMode === 'end') {
+        map.current.on('click', handleLocationClick);
+      }
     }
+    
+    // Cleanup function
+    return () => {
+      if (map.current) {
+        map.current.off('click', handleLocationClick);
+      }
+    };
   }, [clickMode]);
 
   // Keyboard shortcuts
